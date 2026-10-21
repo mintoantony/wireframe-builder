@@ -4,6 +4,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type DragEndEvent,
   type DragMoveEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
@@ -29,12 +30,16 @@ export function DragLayer({ children }: { children: ReactNode }) {
     useProject.getState().openComment(null);
   };
 
-  const onDragMove = (e: DragMoveEvent) => {
+  const targetAt = (e: DragMoveEvent | DragEndEvent) => {
     const start = e.activatorEvent as PointerEvent;
     const p = { x: start.clientX + e.delta.x, y: start.clientY + e.delta.y };
     const s = useProject.getState();
     const page = s.project.pages.find((pg) => pg.id === s.activePageId)!;
-    const next = computeDropTarget(p, e.active.data.current as DragData, page.root);
+    return computeDropTarget(p, e.active.data.current as DragData, page.root);
+  };
+
+  const onDragMove = (e: DragMoveEvent) => {
+    const next = targetAt(e);
     setTarget((prev) => (prev?.parentId === next?.parentId && prev?.index === next?.index ? prev : next));
   };
 
@@ -43,13 +48,16 @@ export function DragLayer({ children }: { children: ReactNode }) {
     setTarget(null);
   };
 
-  const onDragEnd = () => {
-    if (active && target) {
+  // Recomputed at release so quick drags with few pointer moves still land.
+  const onDragEnd = (e: DragEndEvent) => {
+    const drag = e.active.data.current as DragData;
+    const drop = targetAt(e);
+    if (drop) {
       const s = useProject.getState();
-      if (active.kind === 'palette') s.addNode(target.parentId, target.index, active.type);
+      if (drag.kind === 'palette') s.addNode(drop.parentId, drop.index, drag.type);
       else {
-        s.moveNode(active.id, target.parentId, target.index);
-        s.select(active.id);
+        s.moveNode(drag.id, drop.parentId, drop.index);
+        s.select(drag.id);
       }
     }
     finish();
